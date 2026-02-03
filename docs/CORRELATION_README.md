@@ -1,5 +1,13 @@
 # Correlation Feature - Complete Package
 
+> **⚠️ DEPRECATED**: This documentation has been superseded by the new unified documentation.
+> 
+> **Please use:** [SAMPLING_GUIDE.md](SAMPLING_GUIDE.md) - See the "Correlations" section.
+> 
+> This file remains for historical reference only.
+
+---
+
 ## Quick Links
 
 - **Quick Start**: [`CORRELATION_QUICKSTART.md`](./CORRELATION_QUICKSTART.md) - 5-minute introduction

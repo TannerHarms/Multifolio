@@ -1,5 +1,13 @@
 # Advanced Sampling Features
 
+> **⚠️ DEPRECATED**: This documentation has been superseded by the new unified documentation.
+> 
+> **Please use:** [SAMPLING_GUIDE.md](SAMPLING_GUIDE.md) for complete feature coverage.
+> 
+> This file remains for historical reference only.
+
+---
+
 This document covers advanced features for the Multifolio sampling module, including configuration persistence, sample filtering, parameter constraints, conditional generation, and batch processing.
 
 ## Table of Contents

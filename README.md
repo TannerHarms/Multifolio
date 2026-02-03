@@ -116,13 +116,19 @@ v0.1.0 (Initial Development)
 5. Submit a pull request
 
 ## Documentation
-Detailed documentation can be found in the `/docs` directory:
+
+### Sampling Features (Complete)
+The sampling module documentation has been reorganized for clarity:
+- **[Sampling Guide](docs/SAMPLING_GUIDE.md)** - Complete user guide covering all features (start here!)
+- **[Sampling API Reference](docs/SAMPLING_REFERENCE.md)** - Full API documentation
+- **[Documentation Index](docs/README.md)** - Overview and migration guide
+
+All sampling features are documented: basic sampling, QMC methods, stratified sampling, correlations, derived parameters, constraints, quality metrics, bootstrap, visualizations, and save/load.
+
+### Other Documentation
 - [API Documentation](docs/api.md) (when applicable)
 - [User Guide](docs/user-guide.md)
 - [Development Guide](docs/development.md)
-- [Advanced Sampling Features](docs/ADVANCED_FEATURES.md) - Correlations, constraints, derived parameters, HDF5 save/load
-- [Quality Metrics & Visualization](docs/QUALITY_AND_VISUALIZATION.md) - Stratified sampling, bootstrap, quality metrics, visualizations
-- [Correlation Modeling](docs/CORRELATION_DOCUMENTATION.md) - Detailed correlation guide
 
 ## License
 [License type, e.g., MIT, Apache 2.0]

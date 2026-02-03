@@ -1,5 +1,13 @@
 # Quality Metrics, Stratified Sampling & Visualizations
 
+> **⚠️ DEPRECATED**: This documentation has been superseded by the new unified documentation.
+> 
+> **Please use:** [SAMPLING_GUIDE.md](SAMPLING_GUIDE.md) for complete feature coverage.
+> 
+> This file remains for historical reference only.
+
+---
+
 This guide covers advanced sampling quality features including stratified sampling, bootstrap resampling, quality metrics, and basic visualizations.
 
 ## Table of Contents

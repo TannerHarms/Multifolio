@@ -1,5 +1,15 @@
 # Correlated Sampling in Multifolio: Complete Documentation
 
+> **⚠️ DEPRECATED**: This documentation has been superseded by the new unified documentation.
+> 
+> **Please use:** [SAMPLING_GUIDE.md](SAMPLING_GUIDE.md) - See the "Correlations" section.
+> 
+> For technical implementation details, see CORRELATION_IMPLEMENTATION_SUMMARY.md.
+> 
+> This file remains for historical reference only.
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Mathematical Foundation](#mathematical-foundation)

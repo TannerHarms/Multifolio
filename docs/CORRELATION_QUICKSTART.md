@@ -1,5 +1,13 @@
 # Correlation Feature - Quick Start Guide
 
+> **⚠️ DEPRECATED**: This documentation has been superseded by the new unified documentation.
+> 
+> **Please use:** [SAMPLING_GUIDE.md](SAMPLING_GUIDE.md) - See the "Correlations" section.
+> 
+> This file remains for historical reference only.
+
+---
+
 ## 5-Minute Introduction
 
 ### What Does It Do?
