@@ -321,11 +321,18 @@ class Sampler:
             NormalDistribution,
             TruncatedNormalDistribution,
             BetaDistribution,
+            ExponentialDistribution,
+            GammaDistribution,
+            LogNormalDistribution,
+            WeibullDistribution,
+            TriangularDistribution,
+            CustomContinuousDistribution,
         )
         from multifolio.core.sampling.distributions.discrete import (
             ConstantDistribution,
             PoissonDistribution,
             UniformDiscreteDistribution,
+            CustomDiscreteDistribution,
         )
         from scipy import stats
         
@@ -365,6 +372,34 @@ class Sampler:
             # Discrete uniform: scale and round
             continuous = distribution.low + uniform_samples * (distribution.high - distribution.low + 1)
             return np.floor(continuous).astype(int)
+        
+        elif isinstance(distribution, ExponentialDistribution):
+            # Exponential inverse CDF: -log(1-u) / rate
+            return -np.log(1 - uniform_samples) / distribution.rate
+        
+        elif isinstance(distribution, GammaDistribution):
+            # Use scipy's gamma inverse CDF
+            return stats.gamma.ppf(uniform_samples, a=distribution.shape, scale=distribution.scale)
+        
+        elif isinstance(distribution, LogNormalDistribution):
+            # Use scipy's lognormal inverse CDF
+            return stats.lognorm.ppf(uniform_samples, s=distribution.sigma, scale=np.exp(distribution.mu))
+        
+        elif isinstance(distribution, WeibullDistribution):
+            # Weibull inverse CDF: scale * (-log(1-u))^(1/shape)
+            return distribution.scale * (-np.log(1 - uniform_samples)) ** (1 / distribution.shape)
+        
+        elif isinstance(distribution, TriangularDistribution):
+            # Use scipy's triangular inverse CDF
+            c = (distribution.mode - distribution.low) / (distribution.high - distribution.low)
+            return stats.triang.ppf(uniform_samples, c, 
+                                   loc=distribution.low, 
+                                   scale=distribution.high - distribution.low)
+        
+        elif isinstance(distribution, (CustomContinuousDistribution, CustomDiscreteDistribution)):
+            # Custom distributions - fallback to their own sampling
+            # (loses QMC properties but maintains custom distribution)
+            return distribution.sample(size=len(uniform_samples))
         
         else:
             # Fallback: use distribution's own sampling (loses QMC properties)

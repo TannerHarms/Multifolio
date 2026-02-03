@@ -6,11 +6,18 @@ from multifolio.core.sampling.distributions.continuous import (
     NormalDistribution,
     TruncatedNormalDistribution,
     BetaDistribution,
+    ExponentialDistribution,
+    GammaDistribution,
+    LogNormalDistribution,
+    WeibullDistribution,
+    TriangularDistribution,
+    CustomContinuousDistribution,
 )
 from multifolio.core.sampling.distributions.discrete import (
     ConstantDistribution,
     PoissonDistribution,
     UniformDiscreteDistribution,
+    CustomDiscreteDistribution,
 )
 
 __all__ = [
@@ -19,7 +26,14 @@ __all__ = [
     "NormalDistribution",
     "TruncatedNormalDistribution",
     "BetaDistribution",
+    "ExponentialDistribution",
+    "GammaDistribution",
+    "LogNormalDistribution",
+    "WeibullDistribution",
+    "TriangularDistribution",
+    "CustomContinuousDistribution",
     "ConstantDistribution",
     "PoissonDistribution",
     "UniformDiscreteDistribution",
+    "CustomDiscreteDistribution",
 ]
