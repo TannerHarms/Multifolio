@@ -1645,3 +1645,644 @@ class Sampler:
             corr_str = ""
         
         return f"Sampler(\nParameters:\n{params_str}{derived_str}{corr_str}\n)"
+    
+    # ===================================================================
+    # Stratified Sampling
+    # ===================================================================
+    
+    def generate_stratified(
+        self,
+        n: int,
+        strata_per_param: Union[int, Dict[str, int]] = 2,
+        return_type: Literal['dict', 'dataframe'] = 'dict',
+        method: Literal['random', 'center', 'jittered'] = 'random',
+        random_seed: Optional[int] = None
+    ) -> Union[Dict[str, np.ndarray], pd.DataFrame]:
+        """
+        Generate stratified samples by dividing parameter space into strata.
+        
+        Stratified sampling ensures better coverage of the parameter space by
+        dividing each parameter's range into bins (strata) and sampling from
+        each stratum. This is particularly useful for rare events and ensuring
+        representative sampling across the entire parameter space.
+        
+        Parameters
+        ----------
+        n : int
+            Total number of samples to generate. Will be distributed as evenly
+            as possible across all strata.
+        strata_per_param : int or dict, default=2
+            Number of strata to divide each parameter into. Can be:
+            - int: Same number of strata for all parameters
+            - dict: Parameter-specific strata counts, e.g., {'X': 3, 'Y': 4}
+        return_type : {'dict', 'dataframe'}, default='dict'
+            Format of returned samples.
+        method : {'random', 'center', 'jittered'}, default='random'
+            Sampling method within each stratum:
+            - 'random': Uniform random sampling within each stratum
+            - 'center': Sample at the center of each stratum
+            - 'jittered': Center + small random jitter
+        random_seed : int, optional
+            Random seed for reproducibility.
+        
+        Returns
+        -------
+        dict or DataFrame
+            Generated stratified samples.
+        
+        Examples
+        --------
+        >>> sampler = Sampler()
+        >>> sampler.add_parameter('X', UniformDistribution(0, 10))
+        >>> sampler.add_parameter('Y', UniformDistribution(0, 10))
+        >>> # Divide each parameter into 5 strata, generate 100 samples
+        >>> samples = sampler.generate_stratified(n=100, strata_per_param=5)
+        >>> # Different strata for different parameters
+        >>> samples = sampler.generate_stratified(
+        ...     n=100, strata_per_param={'X': 3, 'Y': 5}
+        ... )
+        """
+        if not self._parameters:
+            raise ValueError("No parameters defined. Use add_parameter() first.")
+        
+        # Set random seed
+        rng = np.random.default_rng(random_seed or self.random_seed)
+        
+        # Parse strata configuration
+        if isinstance(strata_per_param, int):
+            strata_dict = {name: strata_per_param for name in self._parameter_order}
+        else:
+            strata_dict = {name: strata_per_param.get(name, 2) 
+                          for name in self._parameter_order}
+        
+        # Calculate total number of strata
+        total_strata = np.prod([strata_dict[name] for name in self._parameter_order])
+        
+        # Samples per stratum (distribute evenly)
+        base_samples = n // total_strata
+        extra_samples = n % total_strata
+        
+        # Generate stratum indices for all samples
+        strata_indices = []
+        for i in range(total_strata):
+            n_in_stratum = base_samples + (1 if i < extra_samples else 0)
+            strata_indices.extend([i] * n_in_stratum)
+        
+        # Convert linear indices to multi-dimensional strata coordinates
+        strata_shapes = [strata_dict[name] for name in self._parameter_order]
+        strata_coords = np.array([
+            np.unravel_index(idx, strata_shapes) for idx in strata_indices
+        ])
+        
+        # Generate uniform samples [0, 1] for each parameter
+        samples_uniform = {}
+        for i, name in enumerate(self._parameter_order):
+            n_strata = strata_dict[name]
+            stratum_width = 1.0 / n_strata
+            
+            # Get stratum index for this parameter
+            stratum_idx = strata_coords[:, i]
+            
+            # Generate samples within each stratum
+            if method == 'center':
+                # Sample at stratum center
+                samples = (stratum_idx + 0.5) * stratum_width
+            elif method == 'jittered':
+                # Center + small jitter (±10% of stratum width)
+                centers = (stratum_idx + 0.5) * stratum_width
+                jitter = rng.uniform(-0.1, 0.1, size=len(stratum_idx)) * stratum_width
+                samples = np.clip(centers + jitter, 
+                                stratum_idx * stratum_width,
+                                (stratum_idx + 1) * stratum_width)
+            else:  # random
+                # Uniform within stratum
+                samples = stratum_idx * stratum_width + rng.uniform(0, stratum_width, size=len(stratum_idx))
+            
+            samples_uniform[name] = samples
+        
+        # Apply correlations if present
+        if self.has_correlations():
+            # Convert to array for correlation transformation
+            uniform_array = np.column_stack([samples_uniform[name] 
+                                            for name in self._parameter_order])
+            uniform_array = self._correlation_manager.transform_samples(uniform_array)
+            
+            # Update samples_uniform with correlated values
+            for i, name in enumerate(self._parameter_order):
+                samples_uniform[name] = uniform_array[:, i]
+        
+        # Transform to parameter distributions
+        samples = {}
+        for name in self._parameter_order:
+            dist = self._parameters[name]
+            samples[name] = self._transform_uniform_to_distribution(
+                samples_uniform[name], dist
+            )
+        
+        # Compute derived parameters
+        if self._derived_parameters:
+            samples = self._compute_derived_parameters(samples)
+        
+        if return_type == 'dataframe':
+            return pd.DataFrame(samples)
+        return samples
+    
+    # ===================================================================
+    # Bootstrap Resampling
+    # ===================================================================
+    
+    def bootstrap_resample(
+        self,
+        data: Union[Dict[str, np.ndarray], pd.DataFrame],
+        n: Optional[int] = None,
+        return_type: Literal['dict', 'dataframe'] = 'dict',
+        random_seed: Optional[int] = None
+    ) -> Union[Dict[str, np.ndarray], pd.DataFrame]:
+        """
+        Resample data with replacement (bootstrap).
+        
+        Bootstrap resampling is a statistical technique that generates new
+        samples by randomly selecting from existing data with replacement.
+        Useful for uncertainty quantification and estimating sampling distributions.
+        
+        Parameters
+        ----------
+        data : dict or DataFrame
+            Original data to resample from.
+        n : int, optional
+            Number of samples to generate. If None, uses the size of original data.
+        return_type : {'dict', 'dataframe'}, default='dict'
+            Format of returned samples.
+        random_seed : int, optional
+            Random seed for reproducibility.
+        
+        Returns
+        -------
+        dict or DataFrame
+            Resampled data.
+        
+        Examples
+        --------
+        >>> samples = sampler.generate(n=1000)
+        >>> # Generate bootstrap sample of same size
+        >>> boot_samples = sampler.bootstrap_resample(samples)
+        >>> # Generate larger bootstrap sample
+        >>> boot_samples = sampler.bootstrap_resample(samples, n=5000)
+        """
+        # Convert to dict if DataFrame
+        if isinstance(data, pd.DataFrame):
+            data_dict = {col: data[col].values for col in data.columns}
+            original_size = len(data)
+        else:
+            data_dict = data
+            original_size = len(next(iter(data.values())))
+        
+        # Default n to original size
+        if n is None:
+            n = original_size
+        
+        # Set random seed
+        rng = np.random.default_rng(random_seed or self.random_seed)
+        
+        # Generate bootstrap indices
+        indices = rng.choice(original_size, size=n, replace=True)
+        
+        # Resample each column
+        resampled = {name: values[indices] for name, values in data_dict.items()}
+        
+        if return_type == 'dataframe':
+            return pd.DataFrame(resampled)
+        return resampled
+    
+    # ===================================================================
+    # Sample Quality Metrics
+    # ===================================================================
+    
+    def compute_quality_metrics(
+        self,
+        samples: Union[Dict[str, np.ndarray], pd.DataFrame],
+        metrics: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Compute quality metrics for generated samples.
+        
+        Evaluates sample quality using various statistical measures to ensure
+        proper coverage, distribution, and correlation structure.
+        
+        Parameters
+        ----------
+        samples : dict or DataFrame
+            Samples to evaluate.
+        metrics : list of str, optional
+            Metrics to compute. If None, computes all. Available metrics:
+            - 'coverage': Coverage of parameter space (fraction of strata occupied)
+            - 'discrepancy': Star discrepancy (lower is better)
+            - 'correlation_error': Error in correlation structure
+            - 'distribution_ks': Kolmogorov-Smirnov test for each parameter
+            - 'uniformity': Chi-square test for uniformity
+        
+        Returns
+        -------
+        dict
+            Dictionary of computed metrics.
+        
+        Examples
+        --------
+        >>> samples = sampler.generate(n=1000)
+        >>> metrics = sampler.compute_quality_metrics(samples)
+        >>> print(f"Discrepancy: {metrics['discrepancy']:.4f}")
+        >>> print(f"Coverage: {metrics['coverage']:.2%}")
+        """
+        # Convert to dict if DataFrame
+        if isinstance(samples, pd.DataFrame):
+            samples_dict = {col: samples[col].values for col in samples.columns}
+        else:
+            samples_dict = samples
+        
+        # Filter to base parameters only (not derived)
+        base_params = {name: samples_dict[name] for name in self._parameter_order 
+                      if name in samples_dict}
+        
+        # Default to all metrics
+        if metrics is None:
+            metrics = ['coverage', 'discrepancy', 'correlation_error', 
+                      'distribution_ks', 'uniformity']
+        
+        results = {}
+        n_samples = len(next(iter(base_params.values())))
+        
+        # Transform samples to uniform [0, 1] for some metrics
+        # Use min-max normalization as proxy for uniform transformation
+        uniform_samples = {}
+        for name in self._parameter_order:
+            if name in base_params:
+                data = base_params[name]
+                # Normalize to [0, 1]
+                if data.max() > data.min():
+                    uniform_samples[name] = (data - data.min()) / (data.max() - data.min())
+                else:
+                    uniform_samples[name] = np.full_like(data, 0.5)
+        
+        # Coverage metric (stratified space occupation)
+        if 'coverage' in metrics:
+            n_bins = max(10, int(np.power(n_samples, 1.0 / len(base_params))))
+            occupied = set()
+            
+            for i in range(n_samples):
+                bin_idx = tuple(
+                    int(uniform_samples[name][i] * n_bins)
+                    for name in self._parameter_order if name in uniform_samples
+                )
+                occupied.add(bin_idx)
+            
+            total_bins = n_bins ** len(base_params)
+            results['coverage'] = len(occupied) / total_bins
+            results['coverage_details'] = {
+                'bins_per_dimension': n_bins,
+                'total_bins': total_bins,
+                'occupied_bins': len(occupied)
+            }
+        
+        # Star discrepancy (measure of uniformity)
+        if 'discrepancy' in metrics:
+            uniform_array = np.column_stack([uniform_samples[name] 
+                                            for name in self._parameter_order 
+                                            if name in uniform_samples])
+            results['discrepancy'] = self._compute_star_discrepancy(uniform_array)
+        
+        # Correlation error
+        if 'correlation_error' in metrics and self.has_correlations():
+            target_corr = self.get_correlation_matrix()
+            
+            # Compute actual correlation from samples
+            sample_array = np.column_stack([base_params[name] 
+                                           for name in self._parameter_order])
+            actual_corr = np.corrcoef(sample_array, rowvar=False)
+            
+            # Compute error metrics
+            corr_diff = actual_corr - target_corr
+            results['correlation_error'] = {
+                'rmse': np.sqrt(np.mean(corr_diff ** 2)),
+                'max_abs_error': np.max(np.abs(corr_diff)),
+                'mean_abs_error': np.mean(np.abs(corr_diff))
+            }
+        
+        # KS test for each parameter
+        if 'distribution_ks' in metrics:
+            from scipy.stats import kstest
+            
+            ks_results = {}
+            for name in self._parameter_order:
+                if name in base_params:
+                    # Test against uniform [0, 1]
+                    statistic, pvalue = kstest(uniform_samples[name], 'uniform')
+                    ks_results[name] = {
+                        'statistic': statistic,
+                        'pvalue': pvalue,
+                        'passes': pvalue > 0.05  # 5% significance level
+                    }
+            results['distribution_ks'] = ks_results
+        
+        # Chi-square uniformity test
+        if 'uniformity' in metrics:
+            from scipy.stats import chisquare
+            
+            uniformity_results = {}
+            n_bins = max(10, int(np.sqrt(n_samples)))
+            
+            for name in self._parameter_order:
+                if name in uniform_samples:
+                    observed, _ = np.histogram(uniform_samples[name], bins=n_bins, range=(0, 1))
+                    expected = n_samples / n_bins
+                    statistic, pvalue = chisquare(observed, f_exp=expected)
+                    uniformity_results[name] = {
+                        'statistic': statistic,
+                        'pvalue': pvalue,
+                        'passes': pvalue > 0.05
+                    }
+            results['uniformity'] = uniformity_results
+        
+        return results
+    
+    def _compute_star_discrepancy(self, samples: np.ndarray) -> float:
+        """
+        Compute star discrepancy of samples in [0, 1]^d.
+        
+        Lower values indicate better uniformity. Uses a Monte Carlo approximation.
+        """
+        n, d = samples.shape
+        
+        # Monte Carlo approximation with 1000 test points
+        n_test = min(1000, n)
+        rng = np.random.default_rng(42)  # Fixed seed for reproducibility
+        test_points = rng.uniform(0, 1, size=(n_test, d))
+        
+        max_disc = 0.0
+        for test_point in test_points:
+            # Count samples in box [0, test_point]
+            in_box = np.all(samples <= test_point, axis=1)
+            empirical = np.sum(in_box) / n
+            
+            # Theoretical volume
+            theoretical = np.prod(test_point)
+            
+            # Update max discrepancy
+            disc = abs(empirical - theoretical)
+            max_disc = max(max_disc, disc)
+        
+        return max_disc
+    
+    # ===================================================================
+    # Basic Visualizations
+    # ===================================================================
+    
+    def plot_distributions(
+        self,
+        samples: Union[Dict[str, np.ndarray], pd.DataFrame],
+        parameters: Optional[List[str]] = None,
+        figsize: tuple = (12, 8),
+        bins: int = 50
+    ):
+        """
+        Plot histograms of sampled distributions.
+        
+        Parameters
+        ----------
+        samples : dict or DataFrame
+            Samples to visualize.
+        parameters : list of str, optional
+            Parameters to plot. If None, plots all.
+        figsize : tuple, default=(12, 8)
+            Figure size (width, height) in inches.
+        bins : int, default=50
+            Number of histogram bins.
+        
+        Returns
+        -------
+        matplotlib.figure.Figure
+            Figure object.
+        
+        Examples
+        --------
+        >>> samples = sampler.generate(n=1000, return_type='dataframe')
+        >>> fig = sampler.plot_distributions(samples)
+        >>> fig.savefig('distributions.png')
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "Visualization requires matplotlib. "
+                "Install with: pip install matplotlib"
+            )
+        
+        # Convert to DataFrame if dict
+        if isinstance(samples, dict):
+            df = pd.DataFrame(samples)
+        else:
+            df = samples
+        
+        # Select parameters
+        if parameters is None:
+            parameters = [col for col in df.columns]
+        
+        # Create subplots
+        n_params = len(parameters)
+        n_cols = min(3, n_params)
+        n_rows = (n_params + n_cols - 1) // n_cols
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+        if n_params == 1:
+            axes = np.array([axes])
+        axes = axes.flatten()
+        
+        for i, param in enumerate(parameters):
+            ax = axes[i]
+            data = df[param]
+            
+            # Plot histogram
+            ax.hist(data, bins=bins, density=True, alpha=0.7, 
+                   edgecolor='black', linewidth=0.5)
+            ax.set_xlabel(param)
+            ax.set_ylabel('Density')
+            ax.set_title(f'{param} Distribution')
+            ax.grid(True, alpha=0.3)
+            
+            # Add statistics
+            stats_text = f'μ={data.mean():.3f}\nσ={data.std():.3f}'
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+                   verticalalignment='top', fontsize=9,
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        
+        # Hide unused subplots
+        for i in range(n_params, len(axes)):
+            axes[i].axis('off')
+        
+        plt.tight_layout()
+        return fig
+    
+    def plot_correlation_matrix(
+        self,
+        samples: Union[Dict[str, np.ndarray], pd.DataFrame],
+        parameters: Optional[List[str]] = None,
+        figsize: tuple = (10, 8),
+        annot: bool = True
+    ):
+        """
+        Plot correlation matrix heatmap.
+        
+        Parameters
+        ----------
+        samples : dict or DataFrame
+            Samples to analyze.
+        parameters : list of str, optional
+            Parameters to include. If None, uses all.
+        figsize : tuple, default=(10, 8)
+            Figure size.
+        annot : bool, default=True
+            Whether to annotate cells with correlation values.
+        
+        Returns
+        -------
+        matplotlib.figure.Figure
+            Figure object.
+        
+        Examples
+        --------
+        >>> sampler.set_correlation('X', 'Y', 0.7)
+        >>> samples = sampler.generate(n=1000, return_type='dataframe')
+        >>> fig = sampler.plot_correlation_matrix(samples)
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "Visualization requires matplotlib. "
+                "Install with: pip install matplotlib"
+            )
+        
+        # Convert to DataFrame if dict
+        if isinstance(samples, dict):
+            df = pd.DataFrame(samples)
+        else:
+            df = samples
+        
+        # Select parameters
+        if parameters is None:
+            parameters = list(df.columns)
+        
+        # Compute correlation matrix
+        corr_matrix = df[parameters].corr()
+        
+        # Create heatmap
+        fig, ax = plt.subplots(figsize=figsize)
+        im = ax.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1, aspect='auto')
+        
+        # Set ticks and labels
+        ax.set_xticks(np.arange(len(parameters)))
+        ax.set_yticks(np.arange(len(parameters)))
+        ax.set_xticklabels(parameters, rotation=45, ha='right')
+        ax.set_yticklabels(parameters)
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label('Correlation', rotation=270, labelpad=20)
+        
+        # Annotate cells
+        if annot:
+            for i in range(len(parameters)):
+                for j in range(len(parameters)):
+                    text = ax.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}',
+                                 ha='center', va='center',
+                                 color='white' if abs(corr_matrix.iloc[i, j]) > 0.5 else 'black')
+        
+        ax.set_title('Correlation Matrix')
+        plt.tight_layout()
+        return fig
+    
+    def plot_pairwise(
+        self,
+        samples: Union[Dict[str, np.ndarray], pd.DataFrame],
+        parameters: Optional[List[str]] = None,
+        figsize: tuple = (12, 12),
+        alpha: float = 0.5,
+        point_size: int = 10
+    ):
+        """
+        Create pairwise scatter plot matrix.
+        
+        Parameters
+        ----------
+        samples : dict or DataFrame
+            Samples to visualize.
+        parameters : list of str, optional
+            Parameters to include. If None, uses all (max 6 recommended).
+        figsize : tuple, default=(12, 12)
+            Figure size.
+        alpha : float, default=0.5
+            Point transparency.
+        point_size : int, default=10
+            Size of scatter points.
+        
+        Returns
+        -------
+        matplotlib.figure.Figure
+            Figure object.
+        
+        Examples
+        --------
+        >>> samples = sampler.generate(n=1000, return_type='dataframe')
+        >>> fig = sampler.plot_pairwise(samples, parameters=['X', 'Y', 'Z'])
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "Visualization requires matplotlib. "
+                "Install with: pip install matplotlib"
+            )
+        
+        # Convert to DataFrame if dict
+        if isinstance(samples, dict):
+            df = pd.DataFrame(samples)
+        else:
+            df = samples
+        
+        # Select parameters
+        if parameters is None:
+            parameters = list(df.columns)
+            if len(parameters) > 6:
+                print(f"Warning: Showing first 6 of {len(parameters)} parameters")
+                parameters = parameters[:6]
+        
+        n_params = len(parameters)
+        fig, axes = plt.subplots(n_params, n_params, figsize=figsize)
+        
+        for i, param_y in enumerate(parameters):
+            for j, param_x in enumerate(parameters):
+                ax = axes[i, j]
+                
+                if i == j:
+                    # Diagonal: histogram
+                    ax.hist(df[param_x], bins=30, alpha=0.7, edgecolor='black')
+                    ax.set_ylabel('Count' if j == 0 else '')
+                else:
+                    # Off-diagonal: scatter
+                    ax.scatter(df[param_x], df[param_y], 
+                             alpha=alpha, s=point_size, edgecolors='none')
+                    ax.set_ylabel(param_y if j == 0 else '')
+                
+                # Labels
+                if i == n_params - 1:
+                    ax.set_xlabel(param_x)
+                else:
+                    ax.set_xlabel('')
+                    ax.set_xticklabels([])
+                
+                if j != 0:
+                    ax.set_yticklabels([])
+                
+                ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        return fig

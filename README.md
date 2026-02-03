@@ -120,6 +120,9 @@ Detailed documentation can be found in the `/docs` directory:
 - [API Documentation](docs/api.md) (when applicable)
 - [User Guide](docs/user-guide.md)
 - [Development Guide](docs/development.md)
+- [Advanced Sampling Features](docs/ADVANCED_FEATURES.md) - Correlations, constraints, derived parameters, HDF5 save/load
+- [Quality Metrics & Visualization](docs/QUALITY_AND_VISUALIZATION.md) - Stratified sampling, bootstrap, quality metrics, visualizations
+- [Correlation Modeling](docs/CORRELATION_DOCUMENTATION.md) - Detailed correlation guide
 
 ## License
 [License type, e.g., MIT, Apache 2.0]
