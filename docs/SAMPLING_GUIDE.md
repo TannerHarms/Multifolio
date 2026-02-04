@@ -7,11 +7,11 @@ Complete guide to parameter sampling in Multifolio, from basic usage to advanced
 - [Getting Started](#getting-started) - Basic sampling in 5 minutes
 - [Core Concepts](#core-concepts) - Understanding the sampler
 - [Distribution Types](#distribution-types) - All available distributions
-- [Sampling Methods](#sampling-methods) - Random, QMC, stratified, LHS
+- [Sampling Methods](#sampling-methods) - Random, QMC, stratified, LHS3
 - [Correlations](#correlations) - Model parameter dependencies
 - [Derived Parameters](#derived-parameters) - Computed parameters
 - [Constraints](#constraints) - Filter samples
-- [Quality & Validation](#quality--validation) - Assess sample quality
+- [Quality &amp; Validation](#quality--validation) - Assess sample quality
 - [Visualizations](#visualizations) - Plot and analyze samples
 - [Save/Load](#saveload) - Persistence and reproducibility
 - [Best Practices](#best-practices) - Tips and guidelines
@@ -66,6 +66,7 @@ sampler = Sampler(random_seed=42)  # Reproducibility
 ```
 
 **Key Properties:**
+
 - **Parameters**: Independent variables with distributions
 - **Correlations**: Dependencies between parameters
 - **Derived Parameters**: Computed from other parameters
@@ -102,17 +103,17 @@ samples_df = sampler.generate(n=100, return_type='dataframe')
 
 ### Available Distributions
 
-| Distribution | Use Case | Parameters |
-|--------------|----------|------------|
-| `UniformDistribution` | Equal probability | min, max |
-| `NormalDistribution` | Bell curve, natural variation | mean, std |
-| `LogNormalDistribution` | Positive, right-skewed | mean, std |
-| `ExponentialDistribution` | Time between events | rate |
-| `BetaDistribution` | Bounded [0,1] | alpha, beta |
-| `GammaDistribution` | Wait times, positive values | shape, scale |
-| `WeibullDistribution` | Reliability, lifetime | shape, scale |
-| `TriangularDistribution` | Min/mode/max known | low, mode, high |
-| `CustomDistribution` | User-defined sampling | callable |
+| Distribution                | Use Case                      | Parameters      |
+| --------------------------- | ----------------------------- | --------------- |
+| `UniformDistribution`     | Equal probability             | min, max        |
+| `NormalDistribution`      | Bell curve, natural variation | mean, std       |
+| `LogNormalDistribution`   | Positive, right-skewed        | mean, std       |
+| `ExponentialDistribution` | Time between events           | rate            |
+| `BetaDistribution`        | Bounded [0,1]                 | alpha, beta     |
+| `GammaDistribution`       | Wait times, positive values   | shape, scale    |
+| `WeibullDistribution`     | Reliability, lifetime         | shape, scale    |
+| `TriangularDistribution`  | Min/mode/max known            | low, mode, high |
+| `CustomDistribution`      | User-defined sampling         | callable        |
 
 ### Usage Examples
 
@@ -147,6 +148,7 @@ sampler.add_parameter('custom', CustomDistribution(custom_sampler))
 ### Choosing a Distribution
 
 **When you have:**
+
 - **Min and max bounds** → Uniform or Triangular
 - **Mean and std dev** → Normal
 - **Positive values only** → LogNormal, Exponential, or Gamma
@@ -169,6 +171,7 @@ samples = sampler.generate(n=1000, method='random')
 ```
 
 **Properties:**
+
 - ✓ Fast
 - ✓ Statistically independent
 - ✗ Uneven space coverage
@@ -185,6 +188,7 @@ samples = sampler.generate(n=1024, method='sobol')  # Use n = 2^k for best resul
 ```
 
 **Properties:**
+
 - ✓ Excellent space coverage
 - ✓ Faster convergence
 - ✓ Low discrepancy
@@ -201,6 +205,7 @@ samples = sampler.generate(n=1000, method='halton')
 ```
 
 **Properties:**
+
 - ✓ Good space coverage
 - ✓ Works for any n
 - ⚠ Can have correlation artifacts in higher dimensions
@@ -216,6 +221,7 @@ samples = sampler.generate(n=1000, method='lhs')
 ```
 
 **Properties:**
+
 - ✓ Good coverage per dimension
 - ✓ Stratification guarantees
 - ✓ Works for any n
@@ -242,11 +248,13 @@ samples = sampler.generate_stratified(n=125, strata_per_param=5, method='center'
 ```
 
 **Methods:**
+
 - `'random'` (default): Uniform random within each stratum
 - `'center'`: Deterministic center points
 - `'jittered'`: Center ± 10% random noise
 
 **Properties:**
+
 - ✓ Excellent coverage
 - ✓ Works with correlations
 - ✓ Reproducible with 'center'
@@ -277,6 +285,7 @@ for method, m in results.items():
 ```
 
 **Typical Results:**
+
 ```
 Method       Coverage  Discrepancy
 random       0.350     0.180
@@ -295,12 +304,14 @@ Model dependencies between parameters while preserving their individual distribu
 ### Why Correlations Matter
 
 In real systems, parameters are often dependent:
+
 - Temperature and pressure in physical systems
 - Asset returns in financial portfolios
 - Customer behaviors in markets
 - Component failures in reliability analysis
 
 **Ignoring correlations leads to:**
+
 - ❌ Unrealistic scenarios
 - ❌ Poor risk estimates
 - ❌ Overestimated diversification
@@ -341,6 +352,7 @@ sampler.set_correlation('X', 'Y', -1.0)  # Perfectly opposite
 ```
 
 **Interpretation:**
+
 - **+1.0**: Perfect positive (Y increases when X increases)
 - **+0.7**: Strong positive
 - **+0.3**: Weak positive
@@ -384,6 +396,7 @@ sampler.set_correlation_matrix(['A', 'B', 'C'], corr_matrix)
 ```
 
 **Rules:**
+
 - Must be symmetric (corr[i,j] = corr[j,i])
 - Diagonal must be 1.0
 - Must be positive definite (valid correlation matrix)
@@ -406,12 +419,14 @@ samples5 = sampler.generate_stratified(n=125, strata_per_param=5)
 ### Technical Details
 
 **Method**: Gaussian copula
+
 - Transforms uniform samples to correlated uniform
 - Applies inverse CDF to get target distributions
 - Preserves marginal distributions exactly
 - Works with any distribution type
 
 **Limitations:**
+
 - Models linear (Pearson) correlation only
 - Assumes Gaussian dependence structure
 - Cannot model extreme tail dependencies perfectly
@@ -500,6 +515,7 @@ sampler.add_derived_parameter('profit', 'revenue * 0.2')  # 20% margin
 ### Use Cases
 
 **Physics/Engineering:**
+
 ```python
 sampler.add_parameter('voltage', UniformDistribution(100, 240))
 sampler.add_parameter('current', UniformDistribution(1, 10))
@@ -508,6 +524,7 @@ sampler.add_derived_parameter('energy', 'power * time')  # If time is a paramete
 ```
 
 **Finance:**
+
 ```python
 sampler.add_parameter('stock_price', LogNormalDistribution(100, 20))
 sampler.add_parameter('shares', UniformDistribution(100, 1000))
@@ -516,6 +533,7 @@ sampler.add_derived_parameter('gain_loss', 'portfolio_value - initial_investment
 ```
 
 **Geometry:**
+
 ```python
 sampler.add_parameter('radius', UniformDistribution(1, 10))
 sampler.add_derived_parameter('circumference', '2 * np.pi * radius')
@@ -614,6 +632,7 @@ samples = sampler.generate(n=1000)
 ```
 
 **Tips:**
+
 - Avoid overly restrictive constraints (acceptance rate < 1%)
 - Consider if constraint should be a distribution instead
 - Use stratified sampling to improve efficiency
@@ -672,6 +691,7 @@ print(f"Total bins: {metrics['coverage_details']['total_bins']}")
 ```
 
 **Interpretation:**
+
 - **1.0** = Perfect (all bins occupied)
 - **0.8+** = Excellent
 - **0.5-0.8** = Good
@@ -687,6 +707,7 @@ print(f"Discrepancy: {metrics['discrepancy']:.4f}")
 ```
 
 **Interpretation:**
+
 - **<0.1** = Excellent (QMC methods)
 - **0.1-0.2** = Good
 - **>0.2** = Poor (typical random sampling)
@@ -707,6 +728,7 @@ print(f"Mean error: {metrics['correlation_error']['mean_abs_error']:.4f}")
 ```
 
 **Interpretation:**
+
 - **<0.05** = Excellent
 - **0.05-0.1** = Good
 - **0.1-0.2** = Acceptable
@@ -725,6 +747,7 @@ for param, result in metrics['distribution_ks'].items():
 ```
 
 **Interpretation:**
+
 - **p > 0.05**: Distribution matches (PASS)
 - **p < 0.05**: Distribution differs (FAIL)
 
@@ -749,22 +772,22 @@ def validate_samples(sampler, samples, min_coverage=0.5, max_discrepancy=0.3):
         samples,
         metrics=['coverage', 'discrepancy', 'distribution_ks']
     )
-    
+  
     issues = []
-    
+  
     # Check coverage
     if metrics['coverage'] < min_coverage:
         issues.append(f"Low coverage: {metrics['coverage']:.2%}")
-    
+  
     # Check discrepancy
     if metrics['discrepancy'] > max_discrepancy:
         issues.append(f"High discrepancy: {metrics['discrepancy']:.4f}")
-    
+  
     # Check distributions
     for param, result in metrics['distribution_ks'].items():
         if not result['passes']:
             issues.append(f"{param} distribution test failed (p={result['pvalue']:.4f})")
-    
+  
     # Report
     if issues:
         print("⚠ Quality issues detected:")
@@ -934,6 +957,7 @@ samples = sampler2.generate(n=1000)
 ```
 
 **What gets saved:**
+
 - ✓ Parameters and distributions
 - ✓ Correlations
 - ✓ Derived parameters (string formulas only)
@@ -941,6 +965,7 @@ samples = sampler2.generate(n=1000)
 - ✓ Random seed
 
 **Limitations:**
+
 - ✗ Callable derived parameters (use string formulas instead)
 - ✗ Custom distributions (implement as named class)
 
@@ -977,12 +1002,14 @@ samples = sampler.load_samples('samples.h5', format='hdf5')
 **Requirements:** `pip install tables` (or `pip install h5py`)
 
 **Benefits:**
+
 - Faster for large datasets
 - Compression support
 - Preserves data types
 - Industry standard format
 
 **Formats:**
+
 ```python
 # CSV - human readable, universal
 sampler.save_samples('data.csv', samples, format='csv')
@@ -1002,6 +1029,7 @@ sampler.save_samples('data.h5', samples)   # Detects HDF5
 ### Sample Size Selection
 
 **General Guidelines:**
+
 - **Exploration**: 100-1,000 samples
 - **Analysis**: 1,000-10,000 samples
 - **Monte Carlo**: 10,000-1,000,000 samples
@@ -1011,23 +1039,25 @@ sampler.save_samples('data.h5', samples)   # Detects HDF5
 
 ### Method Selection
 
-| Method | Best For | Sample Size |
-|--------|----------|-------------|
-| Random | Large samples, true randomness | 10,000+ |
-| Sobol | Integration, small-medium | 512-8,192 (powers of 2) |
-| Halton | Flexible size QMC | Any, 1,000-10,000 |
-| LHS | Guaranteed per-dimension coverage | Any, 100-5,000 |
-| Stratified | Experimental design, guarantees | Match strata count |
+| Method     | Best For                          | Sample Size             |
+| ---------- | --------------------------------- | ----------------------- |
+| Random     | Large samples, true randomness    | 10,000+                 |
+| Sobol      | Integration, small-medium         | 512-8,192 (powers of 2) |
+| Halton     | Flexible size QMC                 | Any, 1,000-10,000       |
+| LHS        | Guaranteed per-dimension coverage | Any, 100-5,000          |
+| Stratified | Experimental design, guarantees   | Match strata count      |
 
 ### Correlation Modeling
 
 **Do:**
+
 - ✓ Base correlations on data or domain knowledge
 - ✓ Verify correlation matrix is valid (positive definite)
 - ✓ Check achieved correlations match targets
 - ✓ Use adequate sample size (>1,000 for accurate correlations)
 
 **Don't:**
+
 - ✗ Use perfect correlation (±1.0) unless truly deterministic
 - ✗ Assume correlation implies causation
 - ✗ Ignore feasibility (some correlation matrices are impossible)
@@ -1035,12 +1065,14 @@ sampler.save_samples('data.h5', samples)   # Detects HDF5
 ### Derived Parameters
 
 **Do:**
+
 - ✓ Use string formulas (can be saved)
 - ✓ Document formula meanings
 - ✓ Validate derived parameter ranges
 - ✓ Consider adding constraints on derived parameters
 
 **Don't:**
+
 - ✗ Create circular dependencies
 - ✗ Use callables if you need to save config
 - ✗ Create overly complex formulas (hard to debug)
@@ -1048,12 +1080,14 @@ sampler.save_samples('data.h5', samples)   # Detects HDF5
 ### Constraints
 
 **Do:**
+
 - ✓ Check acceptance rate before large generations
 - ✓ Consider if constraint should be a distribution instead
 - ✓ Use constraints for physical impossibilities
 - ✓ Test constraint logic with small samples first
 
 **Don't:**
+
 - ✗ Over-constrain (acceptance rate < 1%)
 - ✗ Use constraints for preferences (use stratified instead)
 - ✗ Create impossible constraint combinations
@@ -1061,12 +1095,14 @@ sampler.save_samples('data.h5', samples)   # Detects HDF5
 ### Performance
 
 **For Large Samples:**
+
 - Use HDF5 instead of CSV (faster I/O)
 - Generate in batches if memory limited
 - Use QMC methods (Sobol/Halton) for faster convergence
 - Avoid tight constraints (low acceptance rate)
 
 **For Many Parameters:**
+
 - Limit pairwise plots to 6 parameters
 - Use stratified sampling judiciously (strata^n_params grows fast)
 - Consider reducing correlations if matrix becomes ill-conditioned
@@ -1074,6 +1110,7 @@ sampler.save_samples('data.h5', samples)   # Detects HDF5
 ### Reproducibility
 
 **Always:**
+
 ```python
 # Set random seed for reproducibility
 sampler = Sampler(random_seed=42)
@@ -1196,7 +1233,7 @@ for name, params in methods.items():
         samples,
         metrics=['coverage', 'discrepancy', 'correlation_error']
     )
-    
+  
     print(f"{name:<12} {metrics['coverage']:<12.3f} "
           f"{metrics['discrepancy']:<12.4f} "
           f"{metrics['correlation_error']['rmse']:<12.4f}")
@@ -1215,6 +1252,7 @@ print(f"{'Stratified':<12} {metrics['coverage']:<12.3f} "
 ### More Examples
 
 See the `examples/` directory for complete working examples:
+
 - `sampling_example.py` - Basic usage
 - `correlated_sampling_examples.py` - Correlation features
 - `advanced_features_example.py` - Constraints, derived parameters, save/load
@@ -1235,17 +1273,17 @@ See the `examples/` directory for complete working examples:
 
 ## Summary
 
-| Feature | Use Case | Key Method |
-|---------|----------|------------|
-| **Basic Sampling** | Quick generation | `generate()` |
-| **QMC Sampling** | Efficient space-filling | `generate(method='sobol')` |
-| **Stratified Sampling** | Experimental design | `generate_stratified()` |
-| **Correlations** | Parameter dependencies | `set_correlation()` |
-| **Derived Parameters** | Computed values | `add_derived_parameter()` |
-| **Constraints** | Filter samples | `add_constraint()` |
-| **Quality Metrics** | Validate samples | `compute_quality_metrics()` |
-| **Visualizations** | Understand data | `plot_distributions()` |
-| **Bootstrap** | Uncertainty quantification | `bootstrap_resample()` |
-| **Save/Load** | Reproducibility | `save_config()`, `save_samples()` |
+| Feature                       | Use Case                   | Key Method                            |
+| ----------------------------- | -------------------------- | ------------------------------------- |
+| **Basic Sampling**      | Quick generation           | `generate()`                        |
+| **QMC Sampling**        | Efficient space-filling    | `generate(method='sobol')`          |
+| **Stratified Sampling** | Experimental design        | `generate_stratified()`             |
+| **Correlations**        | Parameter dependencies     | `set_correlation()`                 |
+| **Derived Parameters**  | Computed values            | `add_derived_parameter()`           |
+| **Constraints**         | Filter samples             | `add_constraint()`                  |
+| **Quality Metrics**     | Validate samples           | `compute_quality_metrics()`         |
+| **Visualizations**      | Understand data            | `plot_distributions()`              |
+| **Bootstrap**           | Uncertainty quantification | `bootstrap_resample()`              |
+| **Save/Load**           | Reproducibility            | `save_config()`, `save_samples()` |
 
 **All features work together seamlessly** - use correlations with stratified sampling, add constraints to derived parameters, visualize correlated samples, etc.
